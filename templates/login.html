@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DivTrek | Admin Login</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .login-box h1 { margin-top: 0; color: var(--dark); font-size: 24px; }
+        .login-box p { color: var(--gray); margin-bottom: 30px; }
+        .input-group { margin-bottom: 20px; text-align: left; }
+        .input-group label { display: block; font-weight: bold; font-size: 14px; margin-bottom: 8px; color: var(--dark); }
+        .input-group input { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+        .login-btn { width: 100%; padding: 12px; background: var(--primary); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .login-btn:hover { background: #e0484d; }
+        .error-msg { background: #fce8e6; color: #c5221f; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-weight: bold; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <div class="logo" style="justify-content: center; margin-bottom: 20px;"><i class="fa-solid fa-lock"></i> DivTrek Admin</div>
+        <h1>Researcher Login</h1>
+        <p>Enter your credentials to access study data.</p>
+        
+        {% if error %}
+            <div class="error-msg"><i class="fa-solid fa-circle-exclamation"></i> {{ error }}</div>
+        {% endif %}
+
+        <form method="POST">
+            <div class="input-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="off">
+            </div>
+            <div class="input-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="login-btn">Sign In</button>
+        </form>
+        <div style="margin-top: 20px;">
+            <a href="/" style="color: var(--gray); text-decoration: none; font-size: 14px;"><i class="fa-solid fa-arrow-left"></i> Return to app</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,20 @@
+# --- SECRETS & CREDENTIALS (CRITICAL) ---
+.env
+google_secrets.json
+
+# --- LOCAL STUDY LOGS ---
+scripts/
+
+# --- PYTHON CACHE & VIRTUAL ENVIRONMENTS ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+
+# --- IDE & OS FILES ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DivTrek | Admin Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f0f2f5; padding-bottom: 50px;}
+        header { background: white; padding: 20px 40px; border-bottom: 1px solid #ebebeb; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100;}
+        .admin-header { background: var(--dark); color: white; padding: 30px; border-radius: 12px; margin-bottom: 30px; text-align: center;}
+        .admin-header h1 { margin: 0; font-size: 28px;}
+        .stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;}
+        .stat-card { background: white; padding: 25px; border-radius: 12px; border: 1px solid #ddd; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
+        .stat-card h3 { margin: 0; color: var(--gray); font-size: 15px;}
+        .stat-card .number { font-size: 32px; font-weight: bold; color: var(--primary); margin-top: 10px;}
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 30px; }
+        .chart-container { background: white; padding: 25px; border-radius: 12px; border: 1px solid #ddd; box-shadow: 0 4px 6px rgba(0,0,0,0.05);}
+        .chart-container h3 { text-align: center; margin-top: 0; margin-bottom: 20px; color: var(--dark); font-size: 18px;}
+        .logout-btn { background: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; text-decoration: none;}
+        .logout-btn:hover { background: #fad2cf; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="logo"><i class="fa-solid fa-lock"></i> Researcher Dashboard</div>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <a href="/" style="text-decoration: none; color: var(--primary); font-weight: bold;"><i class="fa-solid fa-plane"></i> View App</a>
+            <a href="/logout" class="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out</a>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="admin-header">
+            <h1>User Study Analytics</h1>
+            <p>Live, aggregated metadata extracted from study_results.csv</p>
+        </div>
+
+        <div class="stat-cards">
+            <div class="stat-card">
+                <h3>Total Test Users</h3>
+                <div class="number" id="totalUsers">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>Avg Algorithm Preference</h3>
+                <div class="number" id="avgLambda">--</div>
+                <p style="font-size: 12px; color: var(--gray); margin-top: 5px; margin-bottom: 0;">(Closer to 0.0 = Diversity Preferred)</p>
+            </div>
+            <div class="stat-card">
+                <h3>"Find Quieter" Usages</h3>
+                <div class="number" id="quieterUses">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>"Find Cheaper" Usages</h3>
+                <div class="number" id="cheaperUses">--</div>
+            </div>
+            <div class="stat-card">
+                <h3>"Avoid Overtourism" Usages</h3>
+                <div class="number" id="overtourismUses">--</div>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-container">
+                <h3>User Satisfaction (Likes vs Dislikes)</h3>
+                <canvas id="satisfactionChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Top Booked Destinations</h3>
+                <canvas id="bookingsChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Travel Personas Selected</h3>
+                <canvas id="personaChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h3>Feature Usage Breakdown</h3>
+                <canvas id="actionsChart"></canvas>
+            </div>
+        </div>
+
+        <div class="comments-section">
+            <h3><i class="fa-solid fa-comments"></i> User Qualitative Feedback</h3>
+            <div id="commentsList" class="comments-list">
+                <p style="color: var(--gray);">Loading comments...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadAdminData() {
+            try {
+                const response = await fetch('/api/admin/data');
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert("No data collected yet! Or you are not logged in.");
+                    return;
+                }
+
+                // Update Top Stats
+                document.getElementById('totalUsers').innerText = data.total_users;
+                document.getElementById('avgLambda').innerText = data.avg_lambda;
+                document.getElementById('quieterUses').innerText = data.critiques.quieter;
+                document.getElementById('cheaperUses').innerText = data.critiques.cheaper;
+                document.getElementById('overtourismUses').innerText = (data.filters && data.filters.avoid_overtourism) ? data.filters.avoid_overtourism : 0;
+
+                // Render Comments
+                const commentsList = document.getElementById('commentsList');
+                if (data.comments && data.comments.length > 0) {
+                    commentsList.innerHTML = data.comments.map(c => `
+                        <div class="comment-item">
+                            <span class="comment-time"><i class="fa-solid fa-clock"></i> ${c.timestamp} &nbsp;|&nbsp; <i class="fa-solid fa-user-secret"></i> ${c.session}</span>
+                            <p class="comment-text">"${c.text}"</p>
+                        </div>
+                    `).join('');
+                } else {
+                    commentsList.innerHTML = '<p style="color: var(--gray);">No comments have been submitted by users yet.</p>';
+                }
+
+                // 1. Satisfaction Grouped Bar Chart
+                new Chart(document.getElementById('satisfactionChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: ['Top Matches', 'Diversity Picks', 'Critiqued Alternatives'],
+                        datasets: [
+                            { label: 'Likes 👍', backgroundColor: '#34a853', data: [data.likes.TopMatch || 0, data.likes.DiversityPick || 0, data.likes.CritiqueMatch || 0] },
+                            { label: 'Dislikes 👎', backgroundColor: '#ea4335', data: [data.dislikes.TopMatch || 0, data.dislikes.DiversityPick || 0, data.dislikes.CritiqueMatch || 0] }
+                        ]
+                    },
+                    options: { scales: { y: { beginAtZero: true, ticks: {stepSize: 1} } } }
+                });
+
+                // 2. Final Bookings Horizontal Bar
+                new Chart(document.getElementById('bookingsChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(data.top_bookings),
+                        datasets: [{ label: 'Times Selected', data: Object.values(data.top_bookings), backgroundColor: '#1967d2' }]
+                    },
+                    options: { indexAxis: 'y', scales: { x: { beginAtZero: true, ticks: {stepSize: 1} } } }
+                });
+
+                // 3. Persona Pie Chart
+                new Chart(document.getElementById('personaChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(data.personas),
+                        datasets: [{ data: Object.values(data.personas), backgroundColor: ['#ff5a5f', '#1967d2', '#34a853', '#fbbc05', '#7627bb', '#ff6d00'] }]
+                    }
+                });
+
+                // 4. Feature Usage Polar Chart
+                const relevantActions = ['Changed_Lambda_Slider', 'Clicked_Critique_quieter', 'Clicked_Critique_cheaper', 'Rated_DiversityPick', 'Rated_TopMatch', 'Toggled_Avoid_Overtourism'];
+                const filteredActions = {};
+                for (let act of relevantActions) { if(data.actions_breakdown[act]) filteredActions[act.replace(/_/g, ' ')] = data.actions_breakdown[act]; }
+                
+                new Chart(document.getElementById('actionsChart'), {
+                    type: 'polarArea',
+                    data: {
+                        labels: Object.keys(filteredActions),
+                        datasets: [{ data: Object.values(filteredActions), backgroundColor: ['rgba(255, 90, 95, 0.7)', 'rgba(25, 103, 210, 0.7)', 'rgba(52, 168, 83, 0.7)', 'rgba(251, 188, 5, 0.7)', 'rgba(118, 39, 187, 0.7)', 'rgba(25, 180, 210, 0.7)'] }]
+                    }
+                });
+
+            } catch (e) { console.error("Failed to load admin data", e); }
+        }
+
+        loadAdminData();
+    </script>
+</body>
+</html>

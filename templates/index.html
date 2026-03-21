@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DivTrek | Ethical Recommender</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+
+    <div id="aiLoading" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Analyzing your persona...</div>
+    </div>
+
+    <div id="wizardOverlay" class="wizard-overlay">
+        <div class="wizard-modal">
+            <div id="wizardStep1">
+                <h2>Who is traveling?</h2>
+                <p class="wizard-subtitle">Select the persona that best fits your travel style.</p>
+                <div class="persona-grid">
+                    <div class="persona-card" onclick="selectPersona('Standard')">
+                        <img src="https://picsum.photos/seed/standard/400/300" alt="Standard" class="persona-img">
+                        <p class="persona-title">Standard Traveler</p>
+                    </div>
+                    <div class="persona-card" onclick="selectPersona('Backpacker')">
+                        <img src="https://picsum.photos/seed/backpacker/400/300" alt="Backpacker" class="persona-img">
+                        <p class="persona-title">Budget Backpacker</p>
+                    </div>
+                    <div class="persona-card" onclick="selectPersona('Luxury')">
+                        <img src="https://picsum.photos/seed/luxury/400/300" alt="Luxury" class="persona-img">
+                        <p class="persona-title">Luxury Retreat</p>
+                    </div>
+                    <div class="persona-card" onclick="selectPersona('Family')">
+                        <img src="https://picsum.photos/seed/family/400/300" alt="Family" class="persona-img">
+                        <p class="persona-title">Family Vacation</p>
+                    </div>
+                    <div class="persona-card" onclick="selectPersona('Digital Nomad')">
+                        <img src="https://picsum.photos/seed/nomad/400/300" alt="Digital Nomad" class="persona-img">
+                        <p class="persona-title">Digital Nomad</p>
+                    </div>
+                    <div class="persona-card" onclick="selectPersona('Eco-Tourist')">
+                        <img src="https://picsum.photos/seed/eco/400/300" alt="Eco-Tourist" class="persona-img">
+                        <p class="persona-title">Eco-Tourist</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="wizardStep2" style="display: none;">
+                <h2>What are you looking for?</h2>
+                <p class="wizard-subtitle">Select tags and the month you plan to travel.</p>
+                <select class="context-select" id="wizardMonth">
+                    <option value="">Any Month (Annual Average)</option>
+                    <option value="January">January</option><option value="February">February</option>
+                    <option value="March">March</option><option value="April">April</option>
+                    <option value="May">May</option><option value="June">June</option>
+                    <option value="July">July</option><option value="August">August</option>
+                    <option value="September">September</option><option value="October">October</option>
+                    <option value="November">November</option><option value="December">December</option>
+                </select>
+                <div class="tag-cloud" id="wizardTags">
+                    <div class="pref-tag" data-val="Beach">🏖️ Beach</div>
+                    <div class="pref-tag" data-val="City">🏙️ City</div>
+                    <div class="pref-tag" data-val="Nature">🌲 Nature</div>
+                    <div class="pref-tag" data-val="Historical">🏛️ Historical</div>
+                    <div class="pref-tag" data-val="Culture">🏺 Culture</div>
+                    <div class="pref-tag" data-val="Adventure">🧗 Adventure</div>
+                </div>
+                <button class="wizard-btn" id="finishWizardBtn" onclick="finishWizard()" disabled>Find My Destinations</button>
+            </div>
+        </div>
+    </div>
+
+    <header>
+        <div class="logo"><i class="fa-solid fa-plane-departure"></i> DivTrek</div>
+        <div class="header-controls">
+            <div class="toggle-btn" id="btnGrid" onclick="switchView('grid')" style="display: none;">
+                <i class="fa-solid fa-th-large"></i> Grid View
+            </div>
+            <div class="toggle-btn" id="btnMap" onclick="switchView('map')">
+                <i class="fa-solid fa-map"></i> Map View
+            </div>
+            <div class="toggle-btn" id="btnChart" onclick="switchView('chart')">
+                <i class="fa-solid fa-chart-line"></i> Scientific View
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="profile-summary-bar">
+            <div class="profile-details">
+                <div><i class="fa-solid fa-user"></i> Persona: <span id="displayPersona">None</span></div>
+                <div><i class="fa-solid fa-calendar"></i> Month: <span id="displayMonth">Any</span></div>
+                <div><i class="fa-solid fa-tags"></i> Tags: <span id="displayTags">None</span></div>
+            </div>
+            <button class="edit-profile-btn" onclick="openWizard()">Edit Profile</button>
+        </div>
+
+        <div class="active-critique-banner" id="critiqueBanner" style="display: none;">
+            <span><i class="fa-solid fa-filter"></i> Currently finding alternatives for: <span id="critiqueTargetName"></span></span>
+            <button class="clear-btn" onclick="clearCritique()">Clear Filters</button>
+        </div>
+
+        <div class="ai-controls">
+            <h2 style="margin-top:0; font-size:18px;"><i class="fa-solid fa-sliders"></i> Algorithm Control</h2>
+            <div class="slider-container">
+                <input type="range" id="lambdaSlider" min="0" max="1" step="0.1" value="0.5">
+                <div class="slider-labels">
+                    <span>🌍 Max Diversity (Explore)</span>
+                    <span>⭐ Max Accuracy (Strict Match)</span>
+                </div>
+            </div>
+            
+            <div class="filter-control" style="margin-top: 15px; margin-bottom: 15px;">
+                <label style="cursor: pointer; font-weight: bold; color: #2c3e50;">
+                    <input type="checkbox" id="avoidOvertourismToggle" onchange="toggleOvertourism()">
+                    <i class="fa-solid fa-leaf" style="color: #34a853;"></i> Avoid Overtouristed Destinations
+                </label>
+            </div>
+
+            <div class="metrics-bar">
+                <div class="metric-badge"><i class="fa-solid fa-bullseye"></i> Accuracy: <span id="accScore">--</span></div>
+                <div class="metric-badge"><i class="fa-solid fa-shuffle"></i> ILD Diversity: <span id="ildScore">--</span></div>
+                <div class="metric-badge"><i class="fa-solid fa-gem"></i> Serendipity: <span id="serendipityScore">--</span></div>
+                <div class="metric-badge" id="priceTracker"><i class="fa-solid fa-wallet"></i> Avg Price: $<span id="avgPrice">--</span>/day</div>
+            </div>
+        </div>
+
+        <div class="grid" id="destinationGrid"></div>
+        <div id="mapView"></div>
+        <div class="chart-view" id="chartView">
+            <h3 style="margin-top: 0; text-align: center;">Pareto Front Visualization</h3>
+            <canvas id="paretoChart"></canvas>
+        </div>
+
+        <div class="global-feedback-box" id="feedbackSection" style="display: none;">
+            <h3>💬 Tell us what you think!</h3>
+            <p style="font-size: 14px; color: var(--gray); margin-top:0;">Did DivTrek's explanations help you discover new places? Any thoughts?</p>
+            <textarea id="userComments" placeholder="Type your comments here..."></textarea>
+            <button onclick="submitComments()">Submit Feedback</button>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('dev') === 'true') {
+            sessionStorage.setItem('isDev', 'true');
+            console.log("🛠️ Developer Mode Activated: Actions will NOT be logged.");
+        }
+        
+        if (!sessionStorage.getItem('sessionID')) {
+            sessionStorage.setItem('sessionID', 'User-' + Math.random().toString(36).substring(2, 7));
+        }
+        const sessionID = sessionStorage.getItem('sessionID');
+        const isDev = sessionStorage.getItem('isDev') === 'true';
+
+        // Upgraded Logger
+        function logUserAction(actionName, itemName = '', interactionValue = '') {
+            fetch('/api/log', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionID,
+                    is_dev: isDev,
+                    action: actionName,
+                    item: itemName,
+                    value: interactionValue,
+                    lambda_val: slider.value,
+                    persona: activePersona,
+                    month: activeMonth,
+                    tags: activeTags.join(','),
+                    critique_target: critiqueTarget,
+                    critique_type: critiqueType
+                })
+            }).catch(e => console.error("Logging error", e));
+        }
+
+        // App State
+        let activePersona = '';
+        let activeMonth = '';
+        let activeTags = [];
+        let critiqueTarget = '';
+        let critiqueType = '';
+        let currentRecommendations = []; 
+        let map;
+        let mapMarkers = [];
+
+        const slider = document.getElementById('lambdaSlider');
+        const grid = document.getElementById('destinationGrid');
+        const chartView = document.getElementById('chartView');
+        const mapDiv = document.getElementById('mapView');
+        const priceTracker = document.getElementById('priceTracker');
+        
+        const ctx = document.getElementById('paretoChart').getContext('2d');
+        const paretoChart = new Chart(ctx, {
+            type: 'scatter',
+            data: { datasets: [{ label: 'Algorithm Output Node', data: [], backgroundColor: '#ff5a5f', pointRadius: 8 }] },
+            options: { scales: { x: { title: { display: true, text: 'Diversity (ILD)' } }, y: { title: { display: true, text: 'Preference Accuracy' } } } }
+        });
+
+        function initMap() {
+            if (!map) {
+                map = L.map('mapView').setView([20, 0], 2);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
+            }
+        }
+
+        function updateMapMarkers() {
+            if (!map) return;
+            mapMarkers.forEach(m => map.removeLayer(m));
+            mapMarkers = [];
+            currentRecommendations.forEach(item => {
+                if (item.lat && item.lng) {
+                    const marker = L.marker([item.lat, item.lng]).addTo(map)
+                        .bindPopup(`<b>${item.name}</b><br>${item.reason}<br>$${item.price}/day`);
+                    mapMarkers.push(marker);
+                }
+            });
+            if (mapMarkers.length > 0) {
+                const group = new L.featureGroup(mapMarkers);
+                map.fitBounds(group.getBounds(), {padding: [50, 50]});
+            }
+        }
+
+        function switchView(view) {
+            grid.style.display = 'none';
+            mapDiv.style.display = 'none';
+            chartView.style.display = 'none';
+            
+            document.getElementById('btnGrid').style.display = 'none';
+            document.getElementById('btnMap').style.display = 'none';
+            document.getElementById('btnChart').style.display = 'none';
+            
+            if (view === 'grid') {
+                grid.style.display = 'grid';
+                document.getElementById('btnMap').style.display = 'flex';
+                document.getElementById('btnChart').style.display = 'flex';
+            } else if (view === 'map') {
+                mapDiv.style.display = 'block';
+                document.getElementById('btnGrid').style.display = 'flex';
+                document.getElementById('btnChart').style.display = 'flex';
+                initMap();
+                setTimeout(() => { map.invalidateSize(); updateMapMarkers(); }, 100); 
+            } else if (view === 'chart') {
+                chartView.style.display = 'block';
+                document.getElementById('btnGrid').style.display = 'flex';
+                document.getElementById('btnMap').style.display = 'flex';
+            }
+            logUserAction("Switched_View", '', view);
+        }
+
+        function openWizard() {
+            document.getElementById('wizardOverlay').style.display = 'flex';
+            document.getElementById('wizardStep1').style.display = 'block';
+            document.getElementById('wizardStep2').style.display = 'none';
+        }
+
+        function selectPersona(personaName) {
+            activePersona = personaName;
+            document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('selected'));
+            event.currentTarget.classList.add('selected');
+            setTimeout(() => {
+                document.getElementById('wizardStep1').style.display = 'none';
+                document.getElementById('wizardStep2').style.display = 'block';
+                checkWizardReady();
+            }, 300);
+        }
+
+        document.querySelectorAll('#wizardTags .pref-tag').forEach(tag => {
+            tag.addEventListener('click', function() {
+                this.classList.toggle('active');
+                const val = this.getAttribute('data-val');
+                if (this.classList.contains('active')) activeTags.push(val);
+                else activeTags = activeTags.filter(t => t !== val);
+                checkWizardReady();
+            });
+        });
+
+        function checkWizardReady() {
+            const btn = document.getElementById('finishWizardBtn');
+            if (activeTags.length > 0) btn.disabled = false;
+            else btn.disabled = true;
+        }
+
+        function finishWizard() {
+            activeMonth = document.getElementById('wizardMonth').value;
+            document.getElementById('displayPersona').innerText = activePersona;
+            document.getElementById('displayMonth').innerText = activeMonth || "Any";
+            document.getElementById('displayTags').innerText = activeTags.join(', ');
+            document.getElementById('wizardOverlay').style.display = 'none';
+            document.getElementById('feedbackSection').style.display = 'block'; 
+            
+            logUserAction("Completed_Onboarding");
+            fetchRecommendations();
+        }
+
+        function toggleOvertourism() {
+            const isChecked = document.getElementById('avoidOvertourismToggle').checked;
+            logUserAction("Toggled_Avoid_Overtourism", "", isChecked ? "true" : "false");
+            fetchRecommendations();
+        }
+
+        async function fetchRecommendations() {
+            const loadingOverlay = document.getElementById('aiLoading');
+            const loadingText = document.getElementById('loadingText');
+            loadingOverlay.style.display = 'flex';
+            loadingText.innerText = "Analyzing your persona...";
+
+            setTimeout(() => { if(loadingOverlay.style.display === 'flex') loadingText.innerText = "Calculating sustainable densities..."; }, 600);
+            setTimeout(() => { if(loadingOverlay.style.display === 'flex') loadingText.innerText = "Finding hidden gems..."; }, 1200);
+
+            try {
+                const lambda = slider.value;
+                const tagsQuery = activeTags.join(',');
+                const avoidOver = document.getElementById('avoidOvertourismToggle').checked;
+                
+                let url = `/api/recommend?lambda=${lambda}&tags=${tagsQuery}&month=${activeMonth}&persona=${activePersona}&avoid_overtourism=${avoidOver}&_t=${new Date().getTime()}`;
+                if (critiqueTarget) url += `&critique_target=${encodeURIComponent(critiqueTarget)}&critique_type=${critiqueType}`;
+
+                await new Promise(r => setTimeout(r, 1600));
+
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("Backend Error");
+                const data = await response.json();
+                
+                loadingOverlay.style.display = 'none';
+                currentRecommendations = data.items;
+
+                if (data.accuracy !== undefined) {
+                    document.getElementById('accScore').innerText = (data.accuracy * 100).toFixed(1) + "%";
+                    document.getElementById('ildScore').innerText = (data.diversity * 100).toFixed(1) + "%";
+                    document.getElementById('serendipityScore').innerText = (data.serendipity * 100).toFixed(1) + "%";
+                    if (data.avg_price > 150) {
+                        priceTracker.classList.add('price-warning');
+                        priceTracker.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> High Avg Price: $<span id="avgPrice">${data.avg_price}</span>/day`;
+                    } else {
+                        priceTracker.classList.remove('price-warning');
+                        priceTracker.innerHTML = `<i class="fa-solid fa-wallet"></i> Avg Price: $<span id="avgPrice">${data.avg_price}</span>/day`;
+                    }
+                    paretoChart.data.datasets[0].data.push({ x: data.diversity, y: data.accuracy });
+                    paretoChart.update();
+                }
+
+                grid.innerHTML = '';
+                
+                data.items.forEach((item, index) => {
+                    const imgUrl = `https://picsum.photos/seed/${encodeURIComponent(item.name)}/600/450`;
+                    const warningHtml = item.overtourism ? `<div class="overtourism-warning"><i class="fa-solid fa-triangle-exclamation"></i> Heavy Overtourism Detected</div>` : '';
+                    
+                    let xaiHtml = '';
+                    if (item.reason === "Top Match") xaiHtml = `<div class="badge xai-badge xai-top-match"><i class="fa-solid fa-bullseye"></i> Top Match</div>`;
+                    else if (item.reason === "Critique Match") xaiHtml = `<div class="badge xai-badge xai-critique"><i class="fa-solid fa-search"></i> Better Alternative</div>`;
+                    else xaiHtml = `<div class="badge xai-badge xai-diversity"><i class="fa-solid fa-wand-magic-sparkles"></i> Diversity Pick</div>`;
+                    
+                    const safeId = item.name.replace(/\s+/g, '');
+                    
+                    const cardHTML = `
+                        <div class="card">
+                            <div class="card-img-wrapper">
+                                <img src="${imgUrl}" alt="${item.name}" class="card-img" loading="lazy">
+                                ${xaiHtml}
+                                <div class="badge region-badge">${item.region}</div>
+                                <div class="badge density-badge" title="${item.tourist_density.toLocaleString()} tourists per km² ${item.density_label}">
+                                    <i class="fa-solid fa-circle-info" style="color:#1967d2;"></i> ${item.tourist_density.toLocaleString()} / km²
+                                </div>
+                                <div class="badge category-badge"><i class="fa-solid fa-tag"></i> ${item.category}</div>
+                                ${warningHtml}
+                            </div>
+                            <div class="card-content">
+                                <div class="card-header"><h3 class="card-title">${item.name}, ${item.country}</h3></div>
+                                
+                                <div style="background: #f0f7ff; padding: 10px; border-radius: 8px; font-size: 12px; color: #0056b3; margin: 12px 0; border-left: 3px solid #0056b3;">
+                                    <strong>Why this?</strong> ${item.xai_explanation}
+                                </div>
+
+                                <div class="card-price">$${item.price} / day approx.</div>
+                                
+                                <div class="critique-bar">
+                                    <button class="critique-btn" onclick="applyCritique('${item.name}', 'quieter')"><i class="fa-solid fa-volume-low"></i> Find Quieter</button>
+                                    <button class="critique-btn" onclick="applyCritique('${item.name}', 'cheaper')"><i class="fa-solid fa-tag"></i> Find Cheaper</button>
+                                </div>
+
+                                <div class="feedback-bar">
+                                    <button class="rate-btn" id="like-${safeId}" onclick="rateItem('${item.name}', '${safeId}', 'Like', '${item.reason}')"><i class="fa-solid fa-thumbs-up"></i></button>
+                                    <button class="rate-btn" id="dislike-${safeId}" onclick="rateItem('${item.name}', '${safeId}', 'Dislike', '${item.reason}')"><i class="fa-solid fa-thumbs-down"></i></button>
+                                </div>
+                                <button class="select-dest-btn" onclick="selectFinalDestination('${item.name}')">I'd Travel Here!</button>
+                            </div>
+                        </div>
+                    `;
+                    grid.insertAdjacentHTML('beforeend', cardHTML);
+                });
+
+                updateMapMarkers();
+
+            } catch (error) {
+                console.error("Fetch failed:", error);
+                document.getElementById('aiLoading').style.display = 'none';
+            }
+        }
+
+        function rateItem(itemName, safeId, rating, reason) {
+            document.getElementById(`like-${safeId}`).classList.remove('liked');
+            document.getElementById(`dislike-${safeId}`).classList.remove('disliked');
+            if (rating === 'Like') document.getElementById(`like-${safeId}`).classList.add('liked');
+            if (rating === 'Dislike') document.getElementById(`dislike-${safeId}`).classList.add('disliked');
+            
+            logUserAction("Rated_" + reason.replace(' ', ''), itemName, rating);
+        }
+
+        function selectFinalDestination(itemName) {
+            alert(`Great choice! You have selected ${itemName} as your destination.`);
+            logUserAction("Selected_Final_Destination", itemName, "Booked");
+        }
+
+        function submitComments() {
+            const comment = document.getElementById('userComments').value;
+            if(comment.trim() !== '') {
+                logUserAction("Submitted_Comment", "", comment);
+                alert("Thank you for your feedback!");
+                document.getElementById('userComments').value = '';
+            }
+        }
+
+        function applyCritique(name, type) {
+            critiqueTarget = name;
+            critiqueType = type;
+            document.getElementById('critiqueBanner').style.display = 'flex';
+            document.getElementById('critiqueTargetName').innerText = name + (type === 'quieter' ? ' (Less Crowded)' : ' (Lower Budget)');
+            logUserAction("Clicked_Critique_" + type, name);
+            fetchRecommendations();
+        }
+
+        function clearCritique() {
+            critiqueTarget = '';
+            critiqueType = '';
+            document.getElementById('critiqueBanner').style.display = 'none';
+            logUserAction("Cleared_Critique");
+            fetchRecommendations();
+        }
+
+        slider.addEventListener('change', () => {
+            logUserAction("Changed_Lambda_Slider", "", slider.value);
+            fetchRecommendations();
+        });
+
+    </script>
+</body>
+</html>
